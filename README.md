@@ -6,6 +6,12 @@ Issue Atlas turns native GitHub issue dependencies into an interactive directed 
 
 The included implementation blueprint works without a token. The viewer is read-only and can load any accessible `github.com` repository directly from the browser.
 
+## A self-referential demo
+
+The DAG in the hosted demo is not fictional: it is a real representation of building Issue Atlas with agentic engineering through a spec-driven context graph. The app was built autonomously from the [actual GitHub issues that now demonstrate it](https://github.com/ccheney/github-issue-dag-viewer/issues?q=is%3Aissue%20state%3Aclosed).
+
+To run the build, I set a `./goal` in Codex and told it to implement the tasks from the graph. The graph served as both the specification and the product demo—a self-fulfilling workflow.
+
 ## Use a GitHub repository
 
 1. Open **Open repository**.
