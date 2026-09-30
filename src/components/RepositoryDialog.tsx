@@ -8,6 +8,8 @@ const TOKEN_TEMPLATE_URL =
   'https://github.com/settings/personal-access-tokens/new?name=Issue%20Atlas&description=Read%20issue%20dependency%20graphs&expires_in=30&issues=read'
 
 interface RepositoryDialogProps {
+  authAvailable: boolean
+  authAuthenticated: boolean
   open: boolean
   initialRepository: string
   loading: boolean
@@ -19,6 +21,8 @@ interface RepositoryDialogProps {
 }
 
 export const RepositoryDialog = ({
+  authAvailable,
+  authAuthenticated,
   open,
   initialRepository,
   loading,
@@ -79,7 +83,7 @@ export const RepositoryDialog = ({
           />
         </FormControl>
 
-        <FormControl required>
+        <FormControl required={!authAuthenticated}>
           <FormControl.Label>Read-only GitHub token</FormControl.Label>
           <TextInput
             autoComplete="off"
@@ -98,6 +102,14 @@ export const RepositoryDialog = ({
             memory and is sent only to api.github.com.
           </FormControl.Caption>
         </FormControl>
+
+        {authAvailable ? (
+          <p>
+            {authAuthenticated
+              ? 'Using your local gh login. Leave the token blank.'
+              : 'Run gh auth login --web in a terminal, then reload this page.'}
+          </p>
+        ) : null}
 
         {loading && progress !== null ? (
           <div aria-live="polite" className="dialog-load-progress" role="status">

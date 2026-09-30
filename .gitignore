@@ -3,6 +3,7 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.playwright-browsers/
 *.tsbuildinfo
 *.local
 .DS_Store

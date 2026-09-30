@@ -1,49 +1,10 @@
 import type { ZodType } from 'zod'
 import type { RepositoryLoadUpdate, RepositoryRef, RepositorySnapshot } from '../domain/types'
 import { type DependencyRef, type IssueRecord, issueKey } from '../domain/types'
+import { ISSUE_DETAILS_QUERY, REPOSITORY_PAGE_QUERY } from './queries.mjs'
 import { issueDetailsSchema, type RepositoryPageResponse, repositoryPageSchema } from './schemas'
 
 const GRAPHQL_ENDPOINT = 'https://api.github.com/graphql'
-
-const REPOSITORY_PAGE_QUERY = `
-  query RepositoryIssueDependencies($owner: String!, $name: String!, $cursor: String) {
-    repository(owner: $owner, name: $name) {
-      nameWithOwner
-      url
-      description
-      isPrivate
-      issues(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}) {
-        totalCount
-        pageInfo { hasNextPage endCursor }
-        nodes {
-          id number title url state stateReason createdAt updatedAt closedAt
-          author { login avatarUrl url }
-          assignees(first: 20) { nodes { login avatarUrl url } }
-          labels(first: 50) { nodes { name color description } }
-          milestone { title url }
-          blockedBy(first: 100) {
-            totalCount
-            nodes { number state title url repository { nameWithOwner } }
-          }
-          blocking(first: 100) {
-            totalCount
-            nodes { number state title url repository { nameWithOwner } }
-          }
-        }
-      }
-    }
-    rateLimit { cost remaining resetAt }
-  }
-`
-
-const ISSUE_DETAILS_QUERY = `
-  query IssueDetails($owner: String!, $name: String!, $number: Int!) {
-    repository(owner: $owner, name: $name) {
-      issue(number: $number) { number body updatedAt }
-    }
-    rateLimit { cost remaining resetAt }
-  }
-`
 
 interface GraphQlEnvelope {
   data?: unknown
@@ -58,21 +19,22 @@ export class GitHubGraphQlError extends Error {
 }
 
 const request = async <T>(
-  token: string,
+  token: string | null,
   query: string,
   variables: Readonly<Record<string, unknown>>,
   schema: ZodType<T>,
   signal?: AbortSignal,
 ): Promise<T> => {
-  const response = await fetch(GRAPHQL_ENDPOINT, {
+  const operation = query === REPOSITORY_PAGE_QUERY ? 'repository' : 'issue'
+  const response = await fetch(token === null ? '/api/graphql' : GRAPHQL_ENDPOINT, {
     method: 'POST',
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
+      ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
       'Content-Type': 'application/json',
       'X-GitHub-Api-Version': '2026-03-10',
     },
-    body: JSON.stringify({ query, variables }),
+    body: JSON.stringify(token === null ? { operation, variables } : { query, variables }),
     cache: 'no-store',
     ...(signal === undefined ? {} : { signal }),
   })
@@ -133,7 +95,7 @@ const issueRecord = (
 
 export const fetchRepositorySnapshot = async (
   repository: RepositoryRef,
-  token: string,
+  token: string | null,
   onUpdate: (update: RepositoryLoadUpdate) => void,
   signal?: AbortSignal,
 ): Promise<RepositorySnapshot> => {
@@ -193,7 +155,7 @@ export const fetchRepositorySnapshot = async (
 export const fetchIssueBody = async (
   repository: RepositoryRef,
   number: number,
-  token: string,
+  token: string | null,
   signal?: AbortSignal,
 ): Promise<string> => {
   const result = await request(

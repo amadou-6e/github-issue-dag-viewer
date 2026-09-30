@@ -2,7 +2,7 @@
 
 ## Security posture
 
-The application is a static client that temporarily handles a GitHub access token and renders repository-controlled issue content. Its primary controls are credential minimization, strict destination control, schema validation, safe Markdown behavior, and a restrictive content security policy.
+The static deployment temporarily handles a GitHub access token and renders repository-controlled issue content. An optional loopback-only server uses the local `gh` login without handing its token to the browser. Both modes use credential minimization, strict destination control, schema validation, safe Markdown behavior, and a restrictive content security policy.
 
 GitHub Pages and GitHub GraphQL are separate trust boundaries. Serving the application from GitHub does not make arbitrary page content or API responses trusted executable code.
 
@@ -18,6 +18,8 @@ GitHub Pages and GitHub GraphQL are separate trust boundaries. Serving the appli
 | Static page to external origins | Script injection, framing, data exfiltration | Restrictive CSP and no third-party runtime services |
 
 ## Token lifecycle
+
+The static/token workflow below remains available. In local `gh` mode, the server invokes the installed CLI for authentication status and two predefined read-only GraphQL queries. It never reads or sends the CLI token to the browser. The GraphQL proxy requires a same-origin POST, and the server rejects other Host headers and binds only to `127.0.0.1`. Do not expose this local server on a public interface or deploy it as-is behind a shared hostname.
 
 1. The user enters a token in the native repository dialog.
 2. Submission validates repository input and non-empty token text before network access.
