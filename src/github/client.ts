@@ -58,17 +58,17 @@ export class GitHubGraphQlError extends Error {
 }
 
 const request = async <T>(
-  token: string,
+  token: string | null,
   query: string,
   variables: Readonly<Record<string, unknown>>,
   schema: ZodType<T>,
   signal?: AbortSignal,
 ): Promise<T> => {
-  const response = await fetch(GRAPHQL_ENDPOINT, {
+  const response = await fetch(token === null ? '/api/graphql' : GRAPHQL_ENDPOINT, {
     method: 'POST',
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
+      ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
       'Content-Type': 'application/json',
       'X-GitHub-Api-Version': '2026-03-10',
     },
@@ -133,7 +133,7 @@ const issueRecord = (
 
 export const fetchRepositorySnapshot = async (
   repository: RepositoryRef,
-  token: string,
+  token: string | null,
   onUpdate: (update: RepositoryLoadUpdate) => void,
   signal?: AbortSignal,
 ): Promise<RepositorySnapshot> => {
@@ -193,7 +193,7 @@ export const fetchRepositorySnapshot = async (
 export const fetchIssueBody = async (
   repository: RepositoryRef,
   number: number,
-  token: string,
+  token: string | null,
   signal?: AbortSignal,
 ): Promise<string> => {
   const result = await request(

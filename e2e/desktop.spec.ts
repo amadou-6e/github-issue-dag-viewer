@@ -2,6 +2,25 @@ import { expect, test } from '@playwright/test'
 import { issueNode, repositoryPage } from '../tests/github-client-fixtures'
 import { captureBrowserErrors, expectNoAccessibilityViolations } from './support'
 
+test('loads a repository through a signed-in local session without a pasted token', async ({
+  page,
+}) => {
+  await page.route('**/auth/session', (route) =>
+    route.fulfill({ json: { available: true, authenticated: true } }),
+  )
+  await page.route('**/api/graphql', (route) =>
+    route.fulfill({ json: repositoryPage({ nodes: [issueNode(1)] }) }),
+  )
+  await page.goto('/?repo=octo-org%2Froadmap')
+  await expect(page.getByRole('dialog', { name: 'Open an issue dependency graph' })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Open repository' })).toBeVisible()
+  await page.getByRole('button', { name: 'Open repository' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Open an issue dependency graph' })
+  await expect(dialog.getByText('Signed in with GitHub.')).toBeVisible()
+  await expect(dialog.getByLabel('Read-only GitHub token')).toHaveValue('')
+  await expect(dialog.getByRole('button', { name: 'Sign out' })).toBeVisible()
+})
+
 test('completes the zero-token desktop workflow', async ({ page }) => {
   const browserErrors = captureBrowserErrors(page)
   await page.emulateMedia({ colorScheme: 'light' })

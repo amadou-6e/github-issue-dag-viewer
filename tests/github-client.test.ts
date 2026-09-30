@@ -35,6 +35,14 @@ afterEach(() => {
 })
 
 describe('fetchRepositorySnapshot', () => {
+  it('uses the local session proxy without a browser-visible token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(repositoryPage({ nodes: [issueNode(1)] })))
+    await fetchRepositorySnapshot(repository, null, vi.fn())
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/graphql')
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers
+    expect(headers).not.toHaveProperty('Authorization')
+  })
+
   it('transforms one page and marks truncated dependency connections', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(

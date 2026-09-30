@@ -13,7 +13,13 @@ import { StatsBar } from './components/StatsBar'
 import { demoSnapshot } from './demo/demo-data'
 import { availableLabels, filterIssueKeys } from './domain/filters'
 import { analyzeGraph } from './domain/graph'
-import type { GraphAnalysis, GraphFilters, LoadProgress, RepositorySnapshot } from './domain/types'
+import type {
+  GraphAnalysis,
+  GraphFilters,
+  IssueRecord,
+  LoadProgress,
+  RepositorySnapshot,
+} from './domain/types'
 import { fetchIssueBody, fetchRepositorySnapshot } from './github/client'
 import { parseRepositoryInput } from './github/parse-repository'
 import { useColorMode } from './hooks/use-color-mode'
@@ -90,40 +96,57 @@ const RepositoryLoadOverlay = ({ progress }: { progress: LoadProgress }): React.
   </div>
 )
 
-export default function App(): React.JSX.Element {
-  const initialRepository = repositoryFromUrl()
-  const colorMode = useColorMode()
-  const [snapshot, setSnapshot] = useState<RepositorySnapshot>(demoSnapshot)
-  const [source, setSource] = useState<'demo' | 'github'>('demo')
-  const [filters, setFilters] = useState<GraphFilters>(initialFilters)
-  const [selectedKey, setSelectedKey] = useState<string | null>(() =>
-    selectInitialIssue(demoSnapshot),
-  )
-  const [direction, setDirection] = useState<LayoutDirection>('LR')
-  const [dialogOpen, setDialogOpen] = useState(initialRepository.length > 0)
-  const [loading, setLoading] = useState(false)
-  const [bodyLoading, setBodyLoading] = useState(false)
-  const [issuesOpen, setIssuesOpen] = useState(false)
-  const [inspectorOpen, setInspectorOpen] = useState(false)
-  const [progress, setProgress] = useState<LoadProgress | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const tokenRef = useRef('')
-  const loadAbortRef = useRef<AbortController | null>(null)
-
-  const analysis = useMemo(() => analyzeGraph(snapshot.issues), [snapshot.issues])
-  const visibleKeys = useMemo(() => filterIssueKeys(analysis, filters), [analysis, filters])
-  const labels = useMemo(() => availableLabels(analysis), [analysis])
-  const selectedIssue = selectedKey === null ? null : (analysis.nodes.get(selectedKey) ?? null)
-  const selectIssue = (key: string): void => {
-    setSelectedKey(key)
-    setInspectorOpen(true)
-  }
-
+const useLocalAuth = (
+  initialRepository: string,
+  loadRepository: (repository: string, token: null) => Promise<void>,
+): {
+  auth: { available: boolean; authenticated: boolean }
+  signOut: () => Promise<void>
+} => {
+  const [auth, setAuth] = useState({ available: false, authenticated: false })
   useEffect(() => {
-    if (selectedKey !== null && visibleKeys.has(selectedKey)) return
-    setSelectedKey([...visibleKeys][0] ?? null)
-  }, [selectedKey, visibleKeys])
+    const controller = new AbortController()
+    fetch('/auth/session', { cache: 'no-store', signal: controller.signal })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((result: unknown) => {
+        if (controller.signal.aborted || typeof result !== 'object' || result === null) return
+        const session = result as { available?: boolean; authenticated?: boolean }
+        if (session.available !== true) return
+        setAuth({ available: true, authenticated: session.authenticated === true })
+        if (session.authenticated === true && initialRepository) {
+          void loadRepository(initialRepository, null)
+        }
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [initialRepository, loadRepository])
 
+  const signOut = async (): Promise<void> => {
+    const response = await fetch('/auth/logout', { method: 'POST', cache: 'no-store' })
+    if (!response.ok) throw new Error('Could not sign out of the local session.')
+    setAuth({ available: true, authenticated: false })
+  }
+  return { auth, signOut }
+}
+
+const useIssueBody = ({
+  source,
+  loading,
+  selectedIssue,
+  snapshot,
+  tokenRef,
+  setSnapshot,
+  setError,
+}: {
+  source: 'demo' | 'github'
+  loading: boolean
+  selectedIssue: IssueRecord | null
+  snapshot: RepositorySnapshot
+  tokenRef: React.RefObject<string | null>
+  setSnapshot: React.Dispatch<React.SetStateAction<RepositorySnapshot>>
+  setError: React.Dispatch<React.SetStateAction<string | null>>
+}): boolean => {
+  const [bodyLoading, setBodyLoading] = useState(false)
   useEffect(() => {
     if (
       source !== 'github' ||
@@ -131,11 +154,10 @@ export default function App(): React.JSX.Element {
       selectedIssue === null ||
       selectedIssue.isExternal ||
       selectedIssue.body !== null ||
-      tokenRef.current.length === 0
+      tokenRef.current === ''
     ) {
       return
     }
-
     const controller = new AbortController()
     setBodyLoading(true)
     fetchIssueBody(snapshot.repository, selectedIssue.number, tokenRef.current, controller.signal)
@@ -155,14 +177,58 @@ export default function App(): React.JSX.Element {
         if (!controller.signal.aborted) setBodyLoading(false)
       })
     return () => controller.abort()
-  }, [loading, selectedIssue, snapshot.repository, source])
+  }, [loading, selectedIssue, snapshot.repository, source, tokenRef, setSnapshot, setError])
+  return bodyLoading
+}
 
-  const loadRepository = useCallback(async (input: string, token: string): Promise<void> => {
+export default function App(): React.JSX.Element {
+  const initialRepository = repositoryFromUrl()
+  const colorMode = useColorMode()
+  const [snapshot, setSnapshot] = useState<RepositorySnapshot>(demoSnapshot)
+  const [source, setSource] = useState<'demo' | 'github'>('demo')
+  const [filters, setFilters] = useState<GraphFilters>(initialFilters)
+  const [selectedKey, setSelectedKey] = useState<string | null>(() =>
+    selectInitialIssue(demoSnapshot),
+  )
+  const [direction, setDirection] = useState<LayoutDirection>('LR')
+  const [dialogOpen, setDialogOpen] = useState(initialRepository.length > 0)
+  const [loading, setLoading] = useState(false)
+  const [issuesOpen, setIssuesOpen] = useState(false)
+  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [progress, setProgress] = useState<LoadProgress | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const tokenRef = useRef<string | null>('')
+  const loadAbortRef = useRef<AbortController | null>(null)
+
+  const analysis = useMemo(() => analyzeGraph(snapshot.issues), [snapshot.issues])
+  const visibleKeys = useMemo(() => filterIssueKeys(analysis, filters), [analysis, filters])
+  const labels = useMemo(() => availableLabels(analysis), [analysis])
+  const selectedIssue = selectedKey === null ? null : (analysis.nodes.get(selectedKey) ?? null)
+  const bodyLoading = useIssueBody({
+    source,
+    loading,
+    selectedIssue,
+    snapshot,
+    tokenRef,
+    setSnapshot,
+    setError,
+  })
+  const selectIssue = (key: string): void => {
+    setSelectedKey(key)
+    setInspectorOpen(true)
+  }
+
+  useEffect(() => {
+    if (selectedKey !== null && visibleKeys.has(selectedKey)) return
+    setSelectedKey([...visibleKeys][0] ?? null)
+  }, [selectedKey, visibleKeys])
+
+  const loadRepository = useCallback(async (input: string, token: string | null): Promise<void> => {
     let controller: AbortController | null = null
     try {
       const repository = parseRepositoryInput(input)
-      const normalizedToken = token.trim()
-      if (normalizedToken.length === 0) throw new Error('A GitHub token is required for GraphQL.')
+      const normalizedToken = token?.trim() ?? null
+      if (normalizedToken === '') throw new Error('Sign in or enter a GitHub token.')
       loadAbortRef.current?.abort()
       controller = new AbortController()
       loadAbortRef.current = controller
@@ -206,6 +272,8 @@ export default function App(): React.JSX.Element {
       }
     }
   }, [])
+
+  const { auth, signOut } = useLocalAuth(initialRepository, loadRepository)
 
   const loadDemo = (): void => {
     loadAbortRef.current?.abort()
@@ -280,12 +348,26 @@ export default function App(): React.JSX.Element {
         {loading && progress !== null ? <RepositoryLoadOverlay progress={progress} /> : null}
 
         <RepositoryDialog
+          authAvailable={auth.available}
+          authAuthenticated={auth.authenticated}
           error={error}
           initialRepository={initialRepository || snapshot.repository.url}
           loading={loading}
           onClose={() => setDialogOpen(false)}
-          onConnect={(repository, token) => void loadRepository(repository, token)}
+          onConnect={(repository, token) =>
+            void loadRepository(repository, token || (auth.authenticated ? null : ''))
+          }
           onDemo={loadDemo}
+          onSignOut={() => {
+            void signOut()
+              .then(() => {
+                loadDemo()
+                setDialogOpen(true)
+              })
+              .catch((reason: unknown) =>
+                setError(reason instanceof Error ? reason.message : 'Could not sign out.'),
+              )
+          }}
           open={dialogOpen}
           progress={progress}
         />

@@ -8,6 +8,8 @@ const TOKEN_TEMPLATE_URL =
   'https://github.com/settings/personal-access-tokens/new?name=Issue%20Atlas&description=Read%20issue%20dependency%20graphs&expires_in=30&issues=read'
 
 interface RepositoryDialogProps {
+  authAvailable: boolean
+  authAuthenticated: boolean
   open: boolean
   initialRepository: string
   loading: boolean
@@ -16,9 +18,12 @@ interface RepositoryDialogProps {
   onClose: () => void
   onConnect: (repository: string, token: string) => void
   onDemo: () => void
+  onSignOut: () => void
 }
 
 export const RepositoryDialog = ({
+  authAvailable,
+  authAuthenticated,
   open,
   initialRepository,
   loading,
@@ -27,6 +32,7 @@ export const RepositoryDialog = ({
   onClose,
   onConnect,
   onDemo,
+  onSignOut,
 }: RepositoryDialogProps): React.JSX.Element => {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [repository, setRepository] = useState(initialRepository)
@@ -79,7 +85,7 @@ export const RepositoryDialog = ({
           />
         </FormControl>
 
-        <FormControl required>
+        <FormControl required={!authAuthenticated}>
           <FormControl.Label>Read-only GitHub token</FormControl.Label>
           <TextInput
             autoComplete="off"
@@ -98,6 +104,23 @@ export const RepositoryDialog = ({
             memory and is sent only to api.github.com.
           </FormControl.Caption>
         </FormControl>
+
+        {authAvailable ? (
+          <p>
+            {authAuthenticated ? (
+              <>
+                Signed in with GitHub. Leave the token blank to use your browser session.{' '}
+                <Button onClick={onSignOut} type="button" variant="invisible">
+                  Sign out
+                </Button>
+              </>
+            ) : (
+              <Link href={`/auth/start?repo=${encodeURIComponent(repository)}`}>
+                Sign in with GitHub instead
+              </Link>
+            )}
+          </p>
+        ) : null}
 
         {loading && progress !== null ? (
           <div aria-live="polite" className="dialog-load-progress" role="status">

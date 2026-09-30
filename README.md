@@ -21,6 +21,25 @@ I set a `./goal` in Codex to implement the graph autonomously. The DAG supplied 
 
 GitHub GraphQL requires authentication for public and private repositories. Limit the token to the repositories you want to inspect with **Issues: Read-only** permission. Issue Atlas sends it only to `https://api.github.com/graphql`, keeps it in memory for the current tab, and never writes it to storage, URLs, logs, exports, source maps, or deployment artifacts. Refreshing or closing the tab discards it.
 
+### Sign in with GitHub locally
+
+The local server offers browser sign-in without pasting a token. Create a GitHub App under **Settings → Developer settings → GitHub Apps** with:
+
+- Homepage URL: `http://127.0.0.1:8769/`
+- Callback URL: `http://127.0.0.1:8769/auth/callback`
+- Repository permission **Issues: Read-only**; no webhook is needed.
+
+Then build the app and start the loopback-only server. In PowerShell, set the client ID and secret as process environment variables (never commit them):
+
+```powershell
+$env:GITHUB_APP_CLIENT_ID = '<your app client ID>'
+$env:GITHUB_APP_CLIENT_SECRET = '<your app client secret>'
+bun run build
+bun run start:local
+```
+
+Open `http://127.0.0.1:8769/?repo=owner%2Frepository` and choose **Sign in with GitHub instead**. The server exchanges the OAuth code using PKCE and state validation. The GitHub token stays in server memory; the browser receives an HttpOnly, SameSite cookie and calls a same-origin GraphQL proxy. Sessions end on server restart, sign-out, or token expiry. For a private repository, the GitHub App also needs installation access to that repository. The static GitHub Pages deployment still uses the pasted-token path because it has no server to protect the client secret.
+
 ## Run locally
 
 Install the pinned Bun version from [`.tool-versions`](./.tool-versions), then:
@@ -46,6 +65,7 @@ bunx playwright install chromium
 | --- | --- |
 | `bun run check` | Formatting, linting, and strict TypeScript |
 | `bun run test` | Unit and GitHub client contract tests |
+| `bun run test:local` | Local OAuth and GraphQL proxy tests |
 | `bun run test:e2e` | Desktop, mobile, and accessibility workflows |
 | `bun run build` | Production build and compressed bundle budgets |
 | `bun run verify` | The complete CI gate |
