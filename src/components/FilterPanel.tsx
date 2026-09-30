@@ -6,9 +6,11 @@ import type { GraphFilters, IssueStateFilter, ReadinessFilter } from '../domain/
 
 interface FilterPanelProps {
   filters: GraphFilters
+  linkedOnly: boolean
   labels: readonly string[]
   resultCount: number
   onChange: (filters: GraphFilters) => void
+  onLinkedOnlyChange: (linkedOnly: boolean) => void
   onClose: () => void
 }
 
@@ -34,9 +36,11 @@ const readinessOptions: readonly { value: ReadinessFilter; label: string }[] = [
 
 export const FilterPanel = ({
   filters,
+  linkedOnly,
   labels,
   resultCount,
   onChange,
+  onLinkedOnlyChange,
   onClose,
 }: FilterPanelProps): React.JSX.Element => {
   const [labelsOpen, setLabelsOpen] = useState(false)
@@ -216,6 +220,17 @@ export const FilterPanel = ({
           onChange={(event) => applyFilters({ ...filters, showExternal: event.target.checked })}
         />
         <FormControl.Label>Show cross-repository issues</FormControl.Label>
+      </FormControl>
+
+      <FormControl className="external-toggle">
+        <Checkbox
+          checked={linkedOnly}
+          onChange={(event) => onLinkedOnlyChange(event.target.checked)}
+        />
+        <FormControl.Label>Linked issues only in graph</FormControl.Label>
+        <FormControl.Caption>
+          Standalone issues stay in this list. Select one to show it.
+        </FormControl.Caption>
       </FormControl>
 
       {hasFilters ? (

@@ -101,7 +101,8 @@ export const GraphCanvas = ({
       initial.direction,
       false,
       (graph) => {
-        centerGraph(graph, selectedKeyRef.current)
+        if (graph.nodes(':visible').length <= 80) fitGraph(graph)
+        else centerGraph(graph, selectedKeyRef.current)
         setPngAvailable(pngExportAvailable(graph))
       },
       onLayoutErrorRef.current,
@@ -121,10 +122,12 @@ export const GraphCanvas = ({
     if (cy === null) return
     const elementsChanged = elementsSignatureRef.current !== elementsSignature
     const directionChanged = directionRef.current !== direction
+    const visibilityChanged = visibleKeysSignatureRef.current !== visibleKeysSignature
     elementsSignatureRef.current = elementsSignature
     directionRef.current = direction
+    visibleKeysSignatureRef.current = visibleKeysSignature
 
-    if (!elementsChanged && !directionChanged) {
+    if (!elementsChanged && !directionChanged && !visibilityChanged) {
       return
     }
 
@@ -133,30 +136,21 @@ export const GraphCanvas = ({
     if (elementsChanged) {
       cy.elements().remove()
       cy.add(elements)
-      setGraphVisibility(cy, issueKeysRef.current)
     }
+    setGraphVisibility(cy, issueKeysRef.current)
     runLayout(
       cy,
       direction,
-      true,
+      !visibilityChanged,
       (graph) => {
-        if (directionChanged) fitGraph(graph)
+        if (directionChanged || visibilityChanged || graph.nodes(':visible').length <= 80)
+          fitGraph(graph)
         else centerGraph(graph, selectedKeyRef.current)
         setPngAvailable(pngExportAvailable(graph))
       },
       onLayoutErrorRef.current,
     )
-  }, [direction, elements, elementsSignature])
-
-  useEffect(() => {
-    if (visibleKeysSignatureRef.current === visibleKeysSignature) return
-    visibleKeysSignatureRef.current = visibleKeysSignature
-    const cy = cyRef.current
-    if (cy === null) return
-    setGraphVisibility(cy, issueKeysRef.current)
-    fitGraph(cy)
-    setPngAvailable(pngExportAvailable(cy))
-  }, [visibleKeysSignature])
+  }, [direction, elements, elementsSignature, visibleKeysSignature])
 
   useEffect(() => {
     const cy = cyRef.current
