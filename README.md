@@ -23,7 +23,7 @@ GitHub GraphQL requires authentication for public and private repositories. Limi
 
 ### Sign in with GitHub locally
 
-The local server offers browser sign-in without pasting a token. Create a GitHub App under **Settings → Developer settings → GitHub Apps** with:
+The local server offers browser sign-in without pasting a token. [Open the prefilled GitHub App registration](https://github.com/settings/apps/new?name=amadou-issue-atlas-local&url=http%3A%2F%2F127.0.0.1%3A8769%2F&callback_urls%5B%5D=http%3A%2F%2F127.0.0.1%3A8769%2Fauth%2Fcallback&issues=read&public=false&webhook_active=false), or create a GitHub App under **Settings → Developer settings → GitHub Apps** with:
 
 - Homepage URL: `http://127.0.0.1:8769/`
 - Callback URL: `http://127.0.0.1:8769/auth/callback`
