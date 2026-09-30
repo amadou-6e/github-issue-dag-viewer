@@ -38,6 +38,8 @@ bun run build
 bun run start:local
 ```
 
+If Bun is not on your PATH, replace `bun run build` with `npm exec --yes --package bun@1.3.14 -- bun --bun run build`, then start the server with `node server/local.mjs`.
+
 Open `http://127.0.0.1:8769/?repo=owner%2Frepository` and choose **Sign in with GitHub instead**. The server exchanges the OAuth code using PKCE and state validation. The GitHub token stays in server memory; the browser receives an HttpOnly, SameSite cookie and calls a same-origin GraphQL proxy. Sessions end on server restart, sign-out, or token expiry. For a private repository, the GitHub App also needs installation access to that repository. The static GitHub Pages deployment still uses the pasted-token path because it has no server to protect the client secret.
 
 ## Run locally
