@@ -18,7 +18,6 @@ interface RepositoryDialogProps {
   onClose: () => void
   onConnect: (repository: string, token: string) => void
   onDemo: () => void
-  onSignOut: () => void
 }
 
 export const RepositoryDialog = ({
@@ -32,7 +31,6 @@ export const RepositoryDialog = ({
   onClose,
   onConnect,
   onDemo,
-  onSignOut,
 }: RepositoryDialogProps): React.JSX.Element => {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [repository, setRepository] = useState(initialRepository)
@@ -107,18 +105,9 @@ export const RepositoryDialog = ({
 
         {authAvailable ? (
           <p>
-            {authAuthenticated ? (
-              <>
-                Signed in with GitHub. Leave the token blank to use your browser session.{' '}
-                <Button onClick={onSignOut} type="button" variant="invisible">
-                  Sign out
-                </Button>
-              </>
-            ) : (
-              <Link href={`/auth/start?repo=${encodeURIComponent(repository)}`}>
-                Sign in with GitHub instead
-              </Link>
-            )}
+            {authAuthenticated
+              ? 'Using your local gh login. Leave the token blank.'
+              : 'Run gh auth login --web in a terminal, then reload this page.'}
           </p>
         ) : null}
 

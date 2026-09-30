@@ -35,10 +35,14 @@ afterEach(() => {
 })
 
 describe('fetchRepositorySnapshot', () => {
-  it('uses the local session proxy without a browser-visible token', async () => {
+  it('uses the local gh proxy without a browser-visible token', async () => {
     fetchMock.mockResolvedValue(jsonResponse(repositoryPage({ nodes: [issueNode(1)] })))
     await fetchRepositorySnapshot(repository, null, vi.fn())
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/graphql')
+    expect(requestAt(0).body).toEqual({
+      operation: 'repository',
+      variables: { owner: 'octo-org', name: 'roadmap', cursor: null },
+    })
     const headers = fetchMock.mock.calls[0]?.[1]?.headers
     expect(headers).not.toHaveProperty('Authorization')
   })

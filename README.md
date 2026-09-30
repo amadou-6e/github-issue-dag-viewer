@@ -21,26 +21,18 @@ I set a `./goal` in Codex to implement the graph autonomously. The DAG supplied 
 
 GitHub GraphQL requires authentication for public and private repositories. Limit the token to the repositories you want to inspect with **Issues: Read-only** permission. Issue Atlas sends it only to `https://api.github.com/graphql`, keeps it in memory for the current tab, and never writes it to storage, URLs, logs, exports, source maps, or deployment artifacts. Refreshing or closing the tab discards it.
 
-### Sign in with GitHub locally
+### Use your local `gh` login
 
-The local server offers browser sign-in without pasting a token. [Open the prefilled GitHub App registration](https://github.com/settings/apps/new?name=amadou-issue-atlas-local&url=http%3A%2F%2F127.0.0.1%3A8769%2F&callback_urls%5B%5D=http%3A%2F%2F127.0.0.1%3A8769%2Fauth%2Fcallback&issues=read&public=false&webhook_active=false), or create a GitHub App under **Settings → Developer settings → GitHub Apps** with:
-
-- Homepage URL: `http://127.0.0.1:8769/`
-- Callback URL: `http://127.0.0.1:8769/auth/callback`
-- Repository permission **Issues: Read-only**; no webhook is needed.
-
-Then build the app and start the loopback-only server. In PowerShell, set the client ID and secret as process environment variables (never commit them):
+The loopback-only server can use your existing GitHub CLI login without a pasted token or GitHub App. If needed, run `gh auth login --web` once; the CLI opens GitHub's browser/device authorization flow. Then build and start Issue Atlas:
 
 ```powershell
-$env:GITHUB_APP_CLIENT_ID = '<your app client ID>'
-$env:GITHUB_APP_CLIENT_SECRET = '<your app client secret>'
 bun run build
 bun run start:local
 ```
 
 If Bun is not on your PATH, replace `bun run build` with `npm exec --yes --package bun@1.3.14 -- bun --bun run build`, then start the server with `node server/local.mjs`.
 
-Open `http://127.0.0.1:8769/?repo=owner%2Frepository` and choose **Sign in with GitHub instead**. The server exchanges the OAuth code using PKCE and state validation. The GitHub token stays in server memory; the browser receives an HttpOnly, SameSite cookie and calls a same-origin GraphQL proxy. Sessions end on server restart, sign-out, or token expiry. For a private repository, the GitHub App also needs installation access to that repository. The static GitHub Pages deployment still uses the pasted-token path because it has no server to protect the client secret.
+Open `http://127.0.0.1:8769/?repo=owner%2Frepository`. The viewer detects the `gh` login and loads through a same-origin proxy. The server invokes only Issue Atlas's predefined read-only GraphQL queries through `gh api graphql`; the browser never sees the CLI credential. It binds only to `127.0.0.1` and does not require any `.env` setting. The static GitHub Pages deployment still uses the pasted-token path because it cannot access your local CLI.
 
 ## Run locally
 
@@ -67,7 +59,7 @@ bunx playwright install chromium
 | --- | --- |
 | `bun run check` | Formatting, linting, and strict TypeScript |
 | `bun run test` | Unit and GitHub client contract tests |
-| `bun run test:local` | Local OAuth and GraphQL proxy tests |
+| `bun run test:local` | Local `gh` bridge and GraphQL proxy tests |
 | `bun run test:e2e` | Desktop, mobile, and accessibility workflows |
 | `bun run build` | Production build and compressed bundle budgets |
 | `bun run verify` | The complete CI gate |

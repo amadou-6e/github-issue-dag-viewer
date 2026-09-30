@@ -101,7 +101,6 @@ const useLocalAuth = (
   loadRepository: (repository: string, token: null) => Promise<void>,
 ): {
   auth: { available: boolean; authenticated: boolean }
-  signOut: () => Promise<void>
 } => {
   const [auth, setAuth] = useState({ available: false, authenticated: false })
   useEffect(() => {
@@ -121,12 +120,7 @@ const useLocalAuth = (
     return () => controller.abort()
   }, [initialRepository, loadRepository])
 
-  const signOut = async (): Promise<void> => {
-    const response = await fetch('/auth/logout', { method: 'POST', cache: 'no-store' })
-    if (!response.ok) throw new Error('Could not sign out of the local session.')
-    setAuth({ available: true, authenticated: false })
-  }
-  return { auth, signOut }
+  return { auth }
 }
 
 const useIssueBody = ({
@@ -273,7 +267,7 @@ export default function App(): React.JSX.Element {
     }
   }, [])
 
-  const { auth, signOut } = useLocalAuth(initialRepository, loadRepository)
+  const { auth } = useLocalAuth(initialRepository, loadRepository)
 
   const loadDemo = (): void => {
     loadAbortRef.current?.abort()
@@ -358,16 +352,6 @@ export default function App(): React.JSX.Element {
             void loadRepository(repository, token || (auth.authenticated ? null : ''))
           }
           onDemo={loadDemo}
-          onSignOut={() => {
-            void signOut()
-              .then(() => {
-                loadDemo()
-                setDialogOpen(true)
-              })
-              .catch((reason: unknown) =>
-                setError(reason instanceof Error ? reason.message : 'Could not sign out.'),
-              )
-          }}
           open={dialogOpen}
           progress={progress}
         />

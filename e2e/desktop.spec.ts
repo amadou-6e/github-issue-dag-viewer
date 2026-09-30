@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { issueNode, repositoryPage } from '../tests/github-client-fixtures'
 import { captureBrowserErrors, expectNoAccessibilityViolations } from './support'
 
-test('loads a repository through a signed-in local session without a pasted token', async ({
+test('loads a repository through the local gh login without a pasted token', async ({
   page,
 }) => {
   await page.route('**/auth/session', (route) =>
@@ -16,9 +16,8 @@ test('loads a repository through a signed-in local session without a pasted toke
   await expect(page.getByRole('button', { name: 'Open repository' })).toBeVisible()
   await page.getByRole('button', { name: 'Open repository' }).click()
   const dialog = page.getByRole('dialog', { name: 'Open an issue dependency graph' })
-  await expect(dialog.getByText('Signed in with GitHub.')).toBeVisible()
+  await expect(dialog.getByText('Using your local gh login.')).toBeVisible()
   await expect(dialog.getByLabel('Read-only GitHub token')).toHaveValue('')
-  await expect(dialog.getByRole('button', { name: 'Sign out' })).toBeVisible()
 })
 
 test('completes the zero-token desktop workflow', async ({ page }) => {
