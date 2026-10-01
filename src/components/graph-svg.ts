@@ -1,6 +1,7 @@
 import type { Core } from 'cytoscape'
 import type { ColorMode } from '../hooks/use-color-mode'
 import type { LayoutDirection } from './graph-renderer'
+import type { RoutePoint } from './libavoid-routing'
 
 const SVG_PADDING = 48
 const MAX_INTRINSIC_DIMENSION = 4096
@@ -31,6 +32,7 @@ interface SvgNode {
 
 interface SvgEdge {
   opacity: number
+  points?: readonly RoutePoint[] | undefined
   source: string
   stroke: string
   strokeWidth: number
@@ -87,7 +89,21 @@ const labelLines = (label: string): string[] => {
   return visible
 }
 
-const edgePath = (source: SvgNode, target: SvgNode, direction: LayoutDirection): string => {
+const edgePath = (
+  source: SvgNode,
+  target: SvgNode,
+  direction: LayoutDirection,
+  points?: readonly RoutePoint[],
+): string => {
+  if (points !== undefined && points.length >= 2)
+    return points
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${number(point.x)} ${number(point.y)}`)
+      .join(' ')
+  if (source.id === target.id) {
+    const x = source.x + source.width / 2
+    const y = source.y
+    return `M ${number(x)} ${number(y - 10)} C ${number(x + 70)} ${number(y - 80)} ${number(x + 70)} ${number(y + 80)} ${number(x)} ${number(y + 10)}`
+  }
   if (direction === 'LR') {
     const forward = target.x >= source.x
     const startX = source.x + (forward ? source.width / 2 : -source.width / 2)
@@ -150,7 +166,7 @@ export const renderGraphSvg = (
       const target = nodesById.get(edge.target)
       const marker = markerByStroke.get(edge.stroke)
       if (source === undefined || target === undefined || marker === undefined) return ''
-      return `<path d="${edgePath(source, target, direction)}" fill="none" stroke="${escapeXml(edge.stroke)}" stroke-width="${number(edge.strokeWidth)}" opacity="${number(edge.opacity)}" marker-end="url(#${marker})" stroke-linecap="round" stroke-linejoin="round"/>`
+      return `<path d="${edgePath(source, target, direction, edge.points)}" fill="none" stroke="${escapeXml(edge.stroke)}" stroke-width="${number(edge.strokeWidth)}" opacity="${number(edge.opacity)}" marker-end="url(#${marker})" stroke-linecap="round" stroke-linejoin="round"/>`
     })
     .join('')
   const size = intrinsicSize(graph.bounds)
@@ -193,6 +209,7 @@ const graphForSvg = (cy: Core): SvgGraph => {
     }),
     edges: elements.edges().map((edge) => ({
       opacity: styleNumber(edge.style('opacity'), 1),
+      points: edge.data('routePoints') as RoutePoint[] | undefined,
       source: edge.source().id(),
       stroke: String(edge.style('line-color')),
       strokeWidth: styleNumber(edge.style('width'), 1),

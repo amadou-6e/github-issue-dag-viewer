@@ -70,6 +70,39 @@ describe('graph SVG export', () => {
     expect(svg).toContain('fill="#0d1117"')
   })
 
+  it('exports the exact obstacle-avoiding route shown in the graph', () => {
+    const baseEdge = graph.edges[0]
+    if (baseEdge === undefined) throw new Error('Missing graph fixture edge')
+    const routed: SvgGraph = {
+      ...graph,
+      edges: [
+        {
+          ...baseEdge,
+          points: [
+            { x: 196, y: 100 },
+            { x: 220, y: 160 },
+            { x: 280, y: 160 },
+            { x: 304, y: 100 },
+          ],
+        },
+      ],
+    }
+    expect(renderGraphSvg(routed, 'LR', 'light')).toContain(
+      'M 196 100 L 220 160 L 280 160 L 304 100',
+    )
+  })
+
+  it('keeps a self-dependency visible as a loop in SVG', () => {
+    const baseEdge = graph.edges[0]
+    if (baseEdge === undefined) throw new Error('Missing graph fixture edge')
+    const svg = renderGraphSvg(
+      { ...graph, edges: [{ ...baseEdge, target: baseEdge.source }] },
+      'LR',
+      'light',
+    )
+    expect(svg).toContain('M 196 90 C 266 20 266 180 196 110')
+  })
+
   it('caps the initial viewport without cropping the vector viewBox', () => {
     const svg = renderGraphSvg(
       { ...graph, bounds: { ...graph.bounds, width: 280_006 } },

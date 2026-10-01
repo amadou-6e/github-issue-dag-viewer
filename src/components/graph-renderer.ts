@@ -92,6 +92,7 @@ export const graphStyles = (mode: ColorMode): StylesheetJson => {
         width: 1.5,
       },
     },
+    { selector: 'edge.loop', style: { 'curve-style': 'bezier' } },
     {
       selector: 'node:selected',
       style: {
@@ -136,6 +137,7 @@ export const graphElements = (analysis: GraphAnalysis): ElementDefinition[] => {
   })
   const edges: ElementDefinition[] = analysis.edges.map(({ id, source, target }) => ({
     data: { id, source, target },
+    classes: source === target ? 'loop' : '',
   }))
   return [...nodes, ...edges]
 }
@@ -203,6 +205,25 @@ export const pngExportAvailable = (cy: Core): boolean => {
   return canExportPng(bounds.w, bounds.h)
 }
 
+const finishRouting = (
+  cy: Core,
+  generation: number,
+  onStop: (cy: Core) => void,
+  onError: (message: string) => void,
+): void => {
+  void import('./libavoid-routing')
+    .then(({ routeVisibleEdges }) =>
+      routeVisibleEdges(cy, () => !cy.destroyed() && cy.scratch('_routeGeneration') === generation),
+    )
+    .catch((error: unknown) => {
+      if (cy.scratch('_routeGeneration') !== generation) return
+      onError(error instanceof Error ? error.message : 'Unable to route graph edges.')
+    })
+    .finally(() => {
+      if (!cy.destroyed() && cy.scratch('_routeGeneration') === generation) onStop(cy)
+    })
+}
+
 export const runLayout = (
   cy: Core,
   direction: LayoutDirection,
@@ -210,6 +231,13 @@ export const runLayout = (
   onStop: (cy: Core) => void,
   onError: (message: string) => void,
 ): void => {
+  const generation = (Number(cy.scratch('_routeGeneration')) || 0) + 1
+  cy.scratch('_routeGeneration', generation)
+  cy.edges()
+    .removeData('routePoints')
+    .removeStyle(
+      'curve-style edge-distances source-endpoint target-endpoint segment-weights segment-distances',
+    )
   const visible = cy.elements(':visible')
   const edges = visible.edges()
   const linkedNodes = edges.connectedNodes()
@@ -234,7 +262,7 @@ export const runLayout = (
   const handleStop = (): void => {
     if (cy.destroyed()) return
     packStandalone()
-    onStop(cy)
+    finishRouting(cy, generation, onStop, onError)
   }
   cy.one('layoutstop', handleStop)
   try {
