@@ -54,10 +54,14 @@ bunx playwright install chromium
 
 Dependency connections are capped at 100 relationships per issue, cross-repository nodes contain partial metadata, and graph layout is gated above 1,000 issues. SVG and JSON remain available when a PNG export exceeds the measured limits.
 
+Dagre places the issue cards. A dedicated worker uses Libavoid to route visible arrows around those fixed cards in batches of 16. The page keeps its strict script policy; if routing fails, Cytoscape's original taxi edges remain available and the graph reports the routing error. SVG export uses the same routed bend points as the canvas.
+
 - [Contributor and operations guide](./docs/contributor-guide.md)
 - [Product and architecture plans](./docs/plans/README.md)
 - [Large-graph benchmark](./docs/performance/large-graph-benchmark.md)
 
 ## License
+
+The routing worker includes [`@mr_mint/elkjs-libavoid` 0.5.0](https://github.com/MrMint/elkjs-libavoid) (MIT) and its separately shipped [`libavoid-js` 0.5.0-beta.5](https://github.com/Aksem/libavoid-js) WebAssembly dependency (LGPL-2.1-or-later). Review the LGPL distribution requirements before publishing a build with the worker enabled.
 
 [MIT](./LICENSE) © 2026 Chris Cheney

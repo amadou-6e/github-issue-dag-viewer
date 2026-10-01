@@ -1,6 +1,67 @@
 import { expect, test } from '@playwright/test'
+import type { Core } from 'cytoscape'
 import { issueNode, repositoryPage } from '../tests/github-client-fixtures'
 import { captureBrowserErrors, expectNoAccessibilityViolations } from './support'
+
+test('routes every demo dependency around unrelated cards and draws the returned bends', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const canvas = page.locator('.graph-canvas')
+  await expect
+    .poll(() =>
+      canvas.evaluate((element) => {
+        const cy = (element as HTMLDivElement & { _cyreg: { cy: Core } })._cyreg.cy
+        return cy.edges(':visible').filter((edge) => edge.data('routePoints')).length
+      }),
+    )
+    .toBe(116)
+
+  const audit = await canvas.evaluate((element) => {
+    const cy = (element as HTMLDivElement & { _cyreg: { cy: Core } })._cyreg.cy
+    const crossesInterior = (
+      point: { x: number; y: number },
+      next: { x: number; y: number },
+      box: { x1: number; y1: number; x2: number; y2: number },
+    ): boolean =>
+      (Math.abs(point.x - next.x) < 1 &&
+        point.x > box.x1 + 1 &&
+        point.x < box.x2 - 1 &&
+        Math.max(point.y, next.y) > box.y1 + 1 &&
+        Math.min(point.y, next.y) < box.y2 - 1) ||
+      (Math.abs(point.y - next.y) < 1 &&
+        point.y > box.y1 + 1 &&
+        point.y < box.y2 - 1 &&
+        Math.max(point.x, next.x) > box.x1 + 1 &&
+        Math.min(point.x, next.x) < box.x2 - 1)
+    let mismatchedPoints = 0
+    let obscuredSegments = 0
+    const boxes = cy.nodes(':visible').map((node) => ({
+      id: node.id(),
+      box: node.boundingBox({ includeLabels: false, includeOverlays: false }),
+    }))
+    cy.edges(':visible').forEach((edge) => {
+      const returned = edge.data('routePoints') as { x: number; y: number }[]
+      const drawn = [edge.sourceEndpoint(), ...(edge.segmentPoints() ?? []), edge.targetEndpoint()]
+      mismatchedPoints += Number(returned.length !== drawn.length)
+      mismatchedPoints += drawn.filter((point, index) => {
+        const expected = returned[index]
+        return expected === undefined || Math.hypot(point.x - expected.x, point.y - expected.y) > 1
+      }).length
+      const unrelatedBoxes = boxes.filter(
+        ({ id }) => id !== edge.source().id() && id !== edge.target().id(),
+      )
+      obscuredSegments += drawn.slice(0, -1).flatMap((point, index) => {
+        const next = drawn[index + 1]
+        return next === undefined
+          ? []
+          : unrelatedBoxes.filter(({ box }) => crossesInterior(point, next, box))
+      }).length
+    })
+    return { mismatchedPoints, obscuredSegments }
+  })
+  expect(audit).toEqual({ mismatchedPoints: 0, obscuredSegments: 0 })
+})
 
 test('keeps sparse issues in the list while compacting and filtering the graph', async ({
   page,

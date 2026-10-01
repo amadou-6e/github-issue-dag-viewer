@@ -18,6 +18,7 @@
     "verify": "bun run check && bun run test && bun run test:e2e && bun run build"
   },
   "dependencies": {
+    "@mr_mint/elkjs-libavoid": "0.5.0",
     "@primer/octicons-react": "19.29.2",
     "@primer/primitives": "11.9.0",
     "@primer/react": "38.31.0",

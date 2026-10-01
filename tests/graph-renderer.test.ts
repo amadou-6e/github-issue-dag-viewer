@@ -1,6 +1,9 @@
 import cytoscape from 'cytoscape'
-import { describe, expect, it } from 'vitest'
-import { runLayout, setGraphVisibility } from '../src/components/graph-renderer'
+import { describe, expect, it, vi } from 'vitest'
+import { graphStyles, runLayout, setGraphVisibility } from '../src/components/graph-renderer'
+import { routeVisibleEdges } from '../src/components/libavoid-routing'
+
+vi.mock('../src/components/libavoid-routing', () => ({ routeVisibleEdges: vi.fn(async () => {}) }))
 
 const layout = (cy: cytoscape.Core): Promise<void> =>
   new Promise((resolve, reject) =>
@@ -14,6 +17,36 @@ const layout = (cy: cytoscape.Core): Promise<void> =>
   )
 
 describe('graph layout', () => {
+  it('keeps taxi arrows visible and reports a routing-worker failure', async () => {
+    vi.mocked(routeVisibleEdges).mockRejectedValueOnce(new Error('Router unavailable'))
+    const cy = cytoscape({
+      headless: true,
+      styleEnabled: true,
+      style: graphStyles('light'),
+      elements: [
+        { data: { id: 'source' } },
+        { data: { id: 'target' } },
+        { data: { id: 'edge', source: 'source', target: 'target' } },
+      ],
+    })
+    try {
+      const warnings: string[] = []
+      await new Promise<void>((resolve) =>
+        runLayout(
+          cy,
+          'LR',
+          false,
+          () => resolve(),
+          (message) => warnings.push(message),
+        ),
+      )
+      expect(warnings).toEqual(['Router unavailable'])
+      expect(cy.getElementById('edge').style('curve-style')).toBe('taxi')
+    } finally {
+      cy.destroy()
+    }
+  })
+
   it('packs standalone issues into a grid below the linked graph', async () => {
     const standalone = Array.from({ length: 12 }, (_, index) => `solo-${index}`)
     const cy = cytoscape({

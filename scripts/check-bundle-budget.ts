@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { gzipSync } from 'node:zlib'
 
 interface ManifestChunk {
@@ -13,7 +13,10 @@ const budgets = {
   entry: 215 * 1_024,
   graph: 165 * 1_024,
   markdown: 50 * 1_024,
-  totalJavaScript: 420 * 1_024,
+  router: 30 * 1_024,
+  routerWorker: 30 * 1_024,
+  routerWasm: 200 * 1_024,
+  totalJavaScript: 435 * 1_024,
   css: 52 * 1_024,
 } as const
 
@@ -34,6 +37,15 @@ const compressedBytes = async (file: string): Promise<number> =>
 const entry = requiredChunk('index.html')
 const graph = requiredChunk('src/components/GraphCanvas.tsx')
 const markdown = requiredChunk('src/components/MarkdownBody.tsx')
+const router = requiredChunk('src/components/libavoid-routing.ts')
+const assets = await readdir('dist/assets')
+const requiredAsset = (pattern: RegExp): string => {
+  const file = assets.find((name) => pattern.test(name))
+  if (file === undefined) throw new Error(`Missing production asset matching ${pattern}`)
+  return `assets/${file}`
+}
+const routerWorker = requiredAsset(/^libavoid-worker-.*\.js$/u)
+const routerWasm = requiredAsset(/^libavoid-.*\.wasm$/u)
 const dynamicImports = new Set(entry.dynamicImports ?? [])
 for (const [source, chunk] of [
   ['src/components/GraphCanvas.tsx', graph],
@@ -43,13 +55,21 @@ for (const [source, chunk] of [
     throw new Error(`${source} must remain a dynamic production entry`)
   }
 }
-const javascriptFiles = new Set(Object.values(manifest).map(({ file }) => file))
+if (!(graph.dynamicImports ?? []).includes('src/components/libavoid-routing.ts')) {
+  throw new Error('The obstacle router must remain a dynamic graph-only chunk')
+}
+const javascriptFiles = new Set(
+  assets.filter((file) => file.endsWith('.js')).map((file) => `assets/${file}`),
+)
 const cssFiles = new Set(entry.css ?? [])
 
 const measurements = {
   entry: await compressedBytes(entry.file),
   graph: await compressedBytes(graph.file),
   markdown: await compressedBytes(markdown.file),
+  router: await compressedBytes(router.file),
+  routerWorker: await compressedBytes(routerWorker),
+  routerWasm: await compressedBytes(routerWasm),
   totalJavaScript: (
     await Promise.all([...javascriptFiles].map((file) => compressedBytes(file)))
   ).reduce((total, bytes) => total + bytes, 0),
