@@ -12,10 +12,15 @@ test('keeps sparse issues in the list while compacting and filtering the graph',
     url: `https://github.com/octo-org/roadmap/issues/${number}`,
     repository: { nameWithOwner: 'octo-org/roadmap' },
   })
-  const nodes = Array.from({ length: 62 }, (_, index) => {
+  const nodes = Array.from({ length: 63 }, (_, index) => {
     const number = index + 1
     return {
       ...issueNode(number),
+      state: number === 63 ? ('CLOSED' as const) : ('OPEN' as const),
+      labels:
+        number === 63
+          ? { nodes: [{ name: 'area:solo', color: '0969da', description: 'Standalone issue' }] }
+          : issueNode(number).labels,
       blockedBy: { totalCount: number === 2 ? 1 : 0, nodes: number === 2 ? [dependency(1)] : [] },
       blocking: { totalCount: number === 1 ? 1 : 0, nodes: number === 1 ? [dependency(2)] : [] },
     }
@@ -54,8 +59,24 @@ test('keeps sparse issues in the list while compacting and filtering the graph',
   await linkedOnly.check()
   await page.getByLabel('Search issues').fill('Issue 7')
   await expect(page.locator('.result-count')).toHaveText('1')
+  await expect(linkedOnly).not.toBeChecked()
+  await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
+  await linkedOnly.check()
   await expect(graph).toHaveAttribute('aria-label', /showing 0 issues/)
   await page.getByRole('button', { name: /Issue 7 #7/ }).click()
+  await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
+
+  await page.getByLabel('Search issues').fill('is:issue state:closed')
+  await expect(page.locator('.result-count')).toHaveText('1')
+  await expect(page.getByRole('button', { name: /Issue 63 #63/ })).toBeVisible()
+  await expect(linkedOnly).not.toBeChecked()
+  await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
+
+  await linkedOnly.check()
+  await page.getByLabel('Search issues').fill('is:issue state:closed label:"area:solo"')
+  await expect(page.locator('.result-count')).toHaveText('1')
+  await expect(page.getByRole('button', { name: /Issue 63 #63/ })).toBeVisible()
+  await expect(linkedOnly).not.toBeChecked()
   await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
 })
 

@@ -1,6 +1,6 @@
 import { FilterIcon, SearchIcon, TriangleDownIcon, XIcon } from '@primer/octicons-react'
 import { ActionList, ActionMenu, Button, Checkbox, FormControl, TextInput } from '@primer/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { formatFilterQuery, parseFilterQuery } from '../domain/filters'
 import type { GraphFilters, IssueStateFilter, ReadinessFilter } from '../domain/types'
 
@@ -56,11 +56,19 @@ export const FilterPanel = ({
 
   useEffect(() => setQueryDraft(filters.query), [filters.query])
 
+  const changeFilters = useCallback(
+    (next: GraphFilters): void => {
+      onChange(next)
+      onLinkedOnlyChange(false)
+    },
+    [onChange, onLinkedOnlyChange],
+  )
+
   useEffect(() => {
     if (queryDraft === filters.query) return
     const timeout = window.setTimeout(() => {
       const parsed = parseFilterQuery(queryDraft)
-      onChange({
+      changeFilters({
         query: queryDraft,
         state: parsed.state,
         readiness: parsed.readiness,
@@ -69,12 +77,12 @@ export const FilterPanel = ({
       })
     }, 200)
     return () => window.clearTimeout(timeout)
-  }, [filters.query, onChange, queryDraft])
+  }, [changeFilters, filters.query, queryDraft])
 
   const applyFilters = (next: GraphFilters): void => {
     const query = formatFilterQuery(next)
     setQueryDraft(query)
-    onChange({ ...next, query })
+    changeFilters({ ...next, query })
   }
 
   const clear = (): void => {
@@ -86,7 +94,7 @@ export const FilterPanel = ({
       showExternal: true,
     }
     setQueryDraft(next.query)
-    onChange(next)
+    changeFilters(next)
   }
 
   const visibleLabels = labels.filter((label) =>
