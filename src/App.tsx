@@ -11,7 +11,7 @@ import { RepositoryDialog } from './components/RepositoryDialog'
 import { RepositoryLoadProgress } from './components/RepositoryLoadProgress'
 import { StatsBar } from './components/StatsBar'
 import { demoSnapshot } from './demo/demo-data'
-import { availableLabels, filterIssueKeys } from './domain/filters'
+import { availableLabels, filterIssueKeys, graphIssueKeys } from './domain/filters'
 import { analyzeGraph } from './domain/graph'
 import type { GraphAnalysis, GraphFilters, LoadProgress, RepositorySnapshot } from './domain/types'
 import { fetchIssueBody, fetchRepositorySnapshot } from './github/client'
@@ -29,6 +29,12 @@ const initialFilters = (): GraphFilters => ({
   readiness: 'all',
   labels: new Set(),
   showExternal: true,
+})
+
+const repositoryFilters = (): GraphFilters => ({
+  ...initialFilters(),
+  query: 'is:issue state:open',
+  state: 'open',
 })
 
 const repositoryFromUrl = (): string =>
@@ -90,12 +96,44 @@ const RepositoryLoadOverlay = ({ progress }: { progress: LoadProgress }): React.
   </div>
 )
 
+const LoadingAnnouncement = ({ loading }: { loading: boolean }): React.JSX.Element => (
+  <div aria-live="polite" className="sr-only">
+    {loading ? (
+      <>
+        <SyncIcon /> Loading repository
+      </>
+    ) : null}
+  </div>
+)
+
+const useVisibleSelection = (
+  selectedKey: string | null,
+  visibleKeys: ReadonlySet<string>,
+  setSelectedKey: (key: string | null) => void,
+): void => {
+  useEffect(() => {
+    if (selectedKey !== null && !visibleKeys.has(selectedKey)) setSelectedKey(null)
+  }, [selectedKey, visibleKeys, setSelectedKey])
+}
+
+const useGraphKeys = (
+  analysis: GraphAnalysis,
+  visibleKeys: ReadonlySet<string>,
+  linkedOnly: boolean,
+  selectedKey: string | null,
+): ReadonlySet<string> =>
+  useMemo(
+    () => graphIssueKeys(analysis, visibleKeys, linkedOnly, selectedKey),
+    [analysis, visibleKeys, linkedOnly, selectedKey],
+  )
+
 export default function App(): React.JSX.Element {
   const initialRepository = repositoryFromUrl()
   const colorMode = useColorMode()
   const [snapshot, setSnapshot] = useState<RepositorySnapshot>(demoSnapshot)
   const [source, setSource] = useState<'demo' | 'github'>('demo')
   const [filters, setFilters] = useState<GraphFilters>(initialFilters)
+  const [linkedOnly, setLinkedOnly] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(() =>
     selectInitialIssue(demoSnapshot),
   )
@@ -112,6 +150,7 @@ export default function App(): React.JSX.Element {
 
   const analysis = useMemo(() => analyzeGraph(snapshot.issues), [snapshot.issues])
   const visibleKeys = useMemo(() => filterIssueKeys(analysis, filters), [analysis, filters])
+  const graphKeys = useGraphKeys(analysis, visibleKeys, linkedOnly, selectedKey)
   const labels = useMemo(() => availableLabels(analysis), [analysis])
   const selectedIssue = selectedKey === null ? null : (analysis.nodes.get(selectedKey) ?? null)
   const selectIssue = (key: string): void => {
@@ -119,10 +158,7 @@ export default function App(): React.JSX.Element {
     setInspectorOpen(true)
   }
 
-  useEffect(() => {
-    if (selectedKey !== null && visibleKeys.has(selectedKey)) return
-    setSelectedKey([...visibleKeys][0] ?? null)
-  }, [selectedKey, visibleKeys])
+  useVisibleSelection(selectedKey, visibleKeys, setSelectedKey)
 
   useEffect(() => {
     if (
@@ -184,8 +220,9 @@ export default function App(): React.JSX.Element {
           published = true
           setSnapshot(partialSnapshot)
           setSource('github')
-          setFilters(initialFilters())
-          setSelectedKey(selectInitialIssue(partialSnapshot))
+          setFilters(repositoryFilters())
+          setLinkedOnly(true)
+          setSelectedKey(null)
           setDialogOpen(false)
           updateRepositoryUrl(partialSnapshot.repository.nameWithOwner)
         },
@@ -213,6 +250,7 @@ export default function App(): React.JSX.Element {
     setSnapshot({ ...demoSnapshot, fetchedAt: new Date().toISOString() })
     setSource('demo')
     setFilters(initialFilters())
+    setLinkedOnly(false)
     setSelectedKey(selectInitialIssue(demoSnapshot))
     setDialogOpen(false)
     setError(null)
@@ -237,8 +275,10 @@ export default function App(): React.JSX.Element {
           <aside className={`issue-rail ${issuesOpen ? 'mobile-panel-open' : ''}`}>
             <FilterPanel
               filters={filters}
+              linkedOnly={linkedOnly}
               labels={labels}
               onChange={setFilters}
+              onLinkedOnlyChange={setLinkedOnly}
               onClose={() => setIssuesOpen(false)}
               resultCount={visibleKeys.size}
             />
@@ -253,7 +293,7 @@ export default function App(): React.JSX.Element {
             analysis={analysis}
             colorMode={colorMode}
             direction={direction}
-            issueKeys={visibleKeys}
+            issueKeys={graphKeys}
             key={snapshot.fetchedAt}
             loadProgress={progress}
             onDirectionChange={setDirection}
@@ -289,13 +329,7 @@ export default function App(): React.JSX.Element {
           open={dialogOpen}
           progress={progress}
         />
-        <div aria-live="polite" className="sr-only">
-          {loading ? (
-            <>
-              <SyncIcon /> Loading repository
-            </>
-          ) : null}
-        </div>
+        <LoadingAnnouncement loading={loading} />
       </BaseStyles>
     </ThemeProvider>
   )

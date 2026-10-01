@@ -106,6 +106,23 @@ export const filterIssueKeys = (analysis: GraphAnalysis, filters: GraphFilters):
   )
 }
 
+export const graphIssueKeys = (
+  analysis: GraphAnalysis,
+  filteredKeys: ReadonlySet<string>,
+  linkedOnly: boolean,
+  selectedKey: string | null,
+): Set<string> => {
+  if (!linkedOnly) return new Set(filteredKeys)
+  const linked = new Set<string>()
+  for (const edge of analysis.edges) {
+    if (!filteredKeys.has(edge.source) || !filteredKeys.has(edge.target)) continue
+    linked.add(edge.source)
+    linked.add(edge.target)
+  }
+  if (selectedKey !== null && filteredKeys.has(selectedKey)) linked.add(selectedKey)
+  return linked
+}
+
 export const availableLabels = (analysis: GraphAnalysis): string[] =>
   [
     ...new Set(

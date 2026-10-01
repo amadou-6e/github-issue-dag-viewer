@@ -4,6 +4,7 @@ import {
   availableLabels,
   filterIssueKeys,
   formatFilterQuery,
+  graphIssueKeys,
   parseFilterQuery,
 } from '../src/domain/filters'
 import { analyzeGraph } from '../src/domain/graph'
@@ -91,5 +92,20 @@ describe('issue filters', () => {
       'area:security',
       'area:ui',
     ])
+  })
+
+  it('keeps standalone issues in the list and reveals one when selected in linked-only graph view', () => {
+    const edge = analysis.edges[0]
+    if (edge === undefined) throw new Error('Demo graph has no edge')
+    const standalone = 'example/standalone#1'
+    const filtered = new Set([edge.source, edge.target, standalone])
+    expect(graphIssueKeys(analysis, filtered, true, null)).toEqual(
+      new Set([edge.source, edge.target]),
+    )
+    expect(graphIssueKeys(analysis, filtered, true, standalone)).toEqual(filtered)
+    expect(graphIssueKeys(analysis, filtered, false, null)).toEqual(filtered)
+    expect(graphIssueKeys(analysis, new Set([edge.source, standalone]), true, null)).toEqual(
+      new Set(),
+    )
   })
 })

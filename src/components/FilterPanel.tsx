@@ -1,14 +1,16 @@
 import { FilterIcon, SearchIcon, TriangleDownIcon, XIcon } from '@primer/octicons-react'
 import { ActionList, ActionMenu, Button, Checkbox, FormControl, TextInput } from '@primer/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { formatFilterQuery, parseFilterQuery } from '../domain/filters'
 import type { GraphFilters, IssueStateFilter, ReadinessFilter } from '../domain/types'
 
 interface FilterPanelProps {
   filters: GraphFilters
+  linkedOnly: boolean
   labels: readonly string[]
   resultCount: number
   onChange: (filters: GraphFilters) => void
+  onLinkedOnlyChange: (linkedOnly: boolean) => void
   onClose: () => void
 }
 
@@ -34,9 +36,11 @@ const readinessOptions: readonly { value: ReadinessFilter; label: string }[] = [
 
 export const FilterPanel = ({
   filters,
+  linkedOnly,
   labels,
   resultCount,
   onChange,
+  onLinkedOnlyChange,
   onClose,
 }: FilterPanelProps): React.JSX.Element => {
   const [labelsOpen, setLabelsOpen] = useState(false)
@@ -52,11 +56,19 @@ export const FilterPanel = ({
 
   useEffect(() => setQueryDraft(filters.query), [filters.query])
 
+  const changeFilters = useCallback(
+    (next: GraphFilters): void => {
+      onChange(next)
+      onLinkedOnlyChange(false)
+    },
+    [onChange, onLinkedOnlyChange],
+  )
+
   useEffect(() => {
     if (queryDraft === filters.query) return
     const timeout = window.setTimeout(() => {
       const parsed = parseFilterQuery(queryDraft)
-      onChange({
+      changeFilters({
         query: queryDraft,
         state: parsed.state,
         readiness: parsed.readiness,
@@ -65,12 +77,12 @@ export const FilterPanel = ({
       })
     }, 200)
     return () => window.clearTimeout(timeout)
-  }, [filters.query, onChange, queryDraft])
+  }, [changeFilters, filters.query, queryDraft])
 
   const applyFilters = (next: GraphFilters): void => {
     const query = formatFilterQuery(next)
     setQueryDraft(query)
-    onChange({ ...next, query })
+    changeFilters({ ...next, query })
   }
 
   const clear = (): void => {
@@ -82,7 +94,7 @@ export const FilterPanel = ({
       showExternal: true,
     }
     setQueryDraft(next.query)
-    onChange(next)
+    changeFilters(next)
   }
 
   const visibleLabels = labels.filter((label) =>
@@ -216,6 +228,17 @@ export const FilterPanel = ({
           onChange={(event) => applyFilters({ ...filters, showExternal: event.target.checked })}
         />
         <FormControl.Label>Show cross-repository issues</FormControl.Label>
+      </FormControl>
+
+      <FormControl className="external-toggle">
+        <Checkbox
+          checked={linkedOnly}
+          onChange={(event) => onLinkedOnlyChange(event.target.checked)}
+        />
+        <FormControl.Label>Linked issues only in graph</FormControl.Label>
+        <FormControl.Caption>
+          Standalone issues stay in this list. Select one to show it.
+        </FormControl.Caption>
       </FormControl>
 
       {hasFilters ? (

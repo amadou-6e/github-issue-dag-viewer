@@ -210,22 +210,48 @@ export const runLayout = (
   onStop: (cy: Core) => void,
   onError: (message: string) => void,
 ): void => {
+  const visible = cy.elements(':visible')
+  const edges = visible.edges()
+  const linkedNodes = edges.connectedNodes()
+  const standalone = visible.nodes().not(linkedNodes)
+  const packStandalone = (): void => {
+    const columns = Math.max(1, Math.ceil(Math.sqrt(standalone.length * 1.5)))
+    const bounds = linkedNodes.empty() ? null : linkedNodes.boundingBox()
+    const left = bounds === null ? 0 : bounds.x1
+    const top = bounds === null ? 0 : bounds.y2 + 110
+    standalone
+      .sort((leftNode, rightNode) => leftNode.id().localeCompare(rightNode.id()))
+      .positions((_node, index) => ({
+        x: left + (index % columns) * 210,
+        y: top + Math.floor(index / columns) * 86,
+      }))
+  }
+  if (edges.empty()) {
+    packStandalone()
+    onStop(cy)
+    return
+  }
   const handleStop = (): void => {
-    if (!cy.destroyed()) onStop(cy)
+    if (cy.destroyed()) return
+    packStandalone()
+    onStop(cy)
   }
   cy.one('layoutstop', handleStop)
   try {
-    cy.layout({
-      name: 'dagre',
-      rankDir: direction,
-      rankSep: 90,
-      nodeSep: 28,
-      edgeSep: 14,
-      padding: 48,
-      animate: animate && cy.elements().length < 500,
-      animationDuration: 380,
-      fit: false,
-    } as dagre.DagreLayoutOptions).run()
+    linkedNodes
+      .union(edges)
+      .layout({
+        name: 'dagre',
+        rankDir: direction,
+        rankSep: 65,
+        nodeSep: 18,
+        edgeSep: 10,
+        padding: 48,
+        animate: animate && cy.elements().length < 500,
+        animationDuration: 380,
+        fit: false,
+      } as dagre.DagreLayoutOptions)
+      .run()
   } catch (error) {
     cy.off('layoutstop', handleStop)
     onError(error instanceof Error ? error.message : 'Unknown layout error')

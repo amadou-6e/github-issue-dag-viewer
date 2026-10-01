@@ -2,6 +2,84 @@ import { expect, test } from '@playwright/test'
 import { issueNode, repositoryPage } from '../tests/github-client-fixtures'
 import { captureBrowserErrors, expectNoAccessibilityViolations } from './support'
 
+test('keeps sparse issues in the list while compacting and filtering the graph', async ({
+  page,
+}) => {
+  const dependency = (number: number) => ({
+    number,
+    state: 'OPEN' as const,
+    title: `Issue ${number}`,
+    url: `https://github.com/octo-org/roadmap/issues/${number}`,
+    repository: { nameWithOwner: 'octo-org/roadmap' },
+  })
+  const nodes = Array.from({ length: 63 }, (_, index) => {
+    const number = index + 1
+    return {
+      ...issueNode(number),
+      state: number === 63 ? ('CLOSED' as const) : ('OPEN' as const),
+      labels:
+        number === 63
+          ? { nodes: [{ name: 'area:solo', color: '0969da', description: 'Standalone issue' }] }
+          : issueNode(number).labels,
+      blockedBy: { totalCount: number === 2 ? 1 : 0, nodes: number === 2 ? [dependency(1)] : [] },
+      blocking: { totalCount: number === 1 ? 1 : 0, nodes: number === 1 ? [dependency(2)] : [] },
+    }
+  })
+  const fixture = repositoryPage({ nodes: [issueNode(1)] })
+  await page.route('https://api.github.com/graphql', (route) =>
+    route.fulfill({
+      json: {
+        ...fixture,
+        data: {
+          ...fixture.data,
+          repository: {
+            ...fixture.data.repository,
+            issues: { ...fixture.data.repository.issues, totalCount: nodes.length, nodes },
+          },
+        },
+      },
+    }),
+  )
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Open repository' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Open an issue dependency graph' })
+  await dialog.getByLabel('Repository').fill('octo-org/roadmap')
+  await dialog.getByLabel('Read-only GitHub token').fill('test-token')
+  await dialog.getByRole('button', { name: 'Load repository' }).click()
+
+  const graph = page.getByRole('img', { name: /Dependency graph showing/ })
+  await expect(graph).toHaveAttribute('aria-label', /showing 2 issues/)
+  await expect(page.getByLabel('Search issues')).toHaveValue('is:issue state:open')
+  const linkedOnly = page.getByRole('checkbox', { name: 'Linked issues only in graph' })
+  await expect(linkedOnly).toBeChecked()
+  await expect(page.locator('.result-count')).toHaveText('62')
+
+  await linkedOnly.uncheck()
+  await expect(graph).toHaveAttribute('aria-label', /showing 62 issues/)
+  await linkedOnly.check()
+  await page.getByLabel('Search issues').fill('Issue 7')
+  await expect(page.locator('.result-count')).toHaveText('1')
+  await expect(linkedOnly).not.toBeChecked()
+  await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
+  await linkedOnly.check()
+  await expect(graph).toHaveAttribute('aria-label', /showing 0 issues/)
+  await page.getByRole('button', { name: /Issue 7 #7/ }).click()
+  await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
+
+  await page.getByLabel('Search issues').fill('is:issue state:closed')
+  await expect(page.locator('.result-count')).toHaveText('1')
+  await expect(page.getByRole('button', { name: /Issue 63 #63/ })).toBeVisible()
+  await expect(linkedOnly).not.toBeChecked()
+  await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
+
+  await linkedOnly.check()
+  await page.getByLabel('Search issues').fill('is:issue state:closed label:"area:solo"')
+  await expect(page.locator('.result-count')).toHaveText('1')
+  await expect(page.getByRole('button', { name: /Issue 63 #63/ })).toBeVisible()
+  await expect(linkedOnly).not.toBeChecked()
+  await expect(graph).toHaveAttribute('aria-label', /showing 1 issue/)
+})
+
 test('completes the zero-token desktop workflow', async ({ page }) => {
   const browserErrors = captureBrowserErrors(page)
   await page.emulateMedia({ colorScheme: 'light' })
